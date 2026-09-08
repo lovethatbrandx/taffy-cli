@@ -3,19 +3,18 @@ import { buildContextHistory } from "../context/history.js";
 
 /**
  * Format the app registry into a compact inventory for the LLM.
- * Only includes apps with real metadata — filters out noise from PATH binaries
- * that have no description or categories.
+ * Keeps it minimal — name and description only, no paths or categories.
+ * The LLM just needs to know what's available, not where the binary lives.
  */
 export function formatAppInventory(registry: AppRegistry): string {
   if (registry.apps.length === 0) {
     return "No applications found on this system.";
   }
 
-  // XDG apps always have real metadata from .desktop files
+  // XDG apps — real metadata from .desktop files
   const xdgApps = registry.apps.filter((a) => a.source === "xdg" || a.source === "xdg-user");
 
-  // PATH binaries: only include those with a meaningful description
-  // (not just "PATH binary: name" which is the default for unscanned binaries)
+  // PATH binaries with real descriptions only
   const pathApps = registry.apps.filter(
     (a) =>
       a.source === "path" &&
@@ -23,7 +22,7 @@ export function formatAppInventory(registry: AppRegistry): string {
       !a.description.startsWith("PATH binary:"),
   );
 
-  // Snap/flatpak apps: include if they have metadata
+  // Snap/flatpak with metadata
   const otherApps = registry.apps.filter(
     (a) =>
       (a.source === "snap" || a.source === "flatpak") &&
@@ -33,53 +32,48 @@ export function formatAppInventory(registry: AppRegistry): string {
 
   const lines: string[] = [];
 
-  // XDG apps — the good stuff, always useful
-  if (xdgApps.length > 0) {
-    // Separate GUI from terminal apps
-    const gui = xdgApps.filter((a) => a.isGui);
-    const cli = xdgApps.filter((a) => !a.isGui);
+  // XDG GUI apps
+  const gui = xdgApps.filter((a) => a.isGui);
+  const cli = xdgApps.filter((a) => !a.isGui);
 
-    if (gui.length > 0) {
-      lines.push(`GUI Applications (${gui.length}):`);
-      for (const app of gui) {
-        const desc = app.description ? ` — ${app.description}` : "";
-        const cats = app.categories.length > 0 ? ` [${app.categories.join(", ")}]` : "";
-        lines.push(`  ${app.name}${desc}${cats} → ${app.exec}`);
-      }
-      lines.push("");
+  if (gui.length > 0) {
+    lines.push("GUI apps:");
+    for (const app of gui) {
+      const desc = app.description || app.name;
+      lines.push(`  ${app.exec} — ${desc}`);
     }
+    lines.push("");
+  }
 
-    if (cli.length > 0) {
-      lines.push(`Terminal Applications (${cli.length}):`);
-      for (const app of cli) {
-        const desc = app.description ? ` — ${app.description}` : "";
-        const cats = app.categories.length > 0 ? ` [${app.categories.join(", ")}]` : "";
-        lines.push(`  ${app.name}${desc}${cats} → ${app.exec}`);
-      }
-      lines.push("");
+  if (cli.length > 0) {
+    lines.push("Terminal apps:");
+    for (const app of cli) {
+      const desc = app.description || app.name;
+      lines.push(`  ${app.exec} — ${desc}`);
     }
+    lines.push("");
   }
 
   // PATH binaries with real descriptions
   if (pathApps.length > 0) {
-    lines.push(`CLI Tools (${pathApps.length}):`);
+    lines.push("CLI tools:");
     for (const app of pathApps) {
-      lines.push(`  ${app.name} — ${app.description} → ${app.exec}`);
+      lines.push(`  ${app.exec} — ${app.description}`);
     }
     lines.push("");
   }
 
   // Snap/flatpak
   if (otherApps.length > 0) {
-    lines.push(`Packages (${otherApps.length}):`);
+    lines.push("Packages:");
     for (const app of otherApps) {
-      lines.push(`  ${app.name} — ${app.description} → ${app.exec}`);
+      lines.push(`  ${app.exec} — ${app.description}`);
     }
   }
 
   const total = xdgApps.length + pathApps.length + otherApps.length;
   if (total === 0) {
-    return "No applications with sufficient metadata found. The system has CLI tools in PATH but no detailed inventory.";
+    return "No applications with metadata found.";
   }
 
   return lines.join("\n");

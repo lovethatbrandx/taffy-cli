@@ -185,8 +185,8 @@ function dispatchAction(action: ActionResult, config: Config): void {
           if (!e.stdout && !e.stderr) process.stderr.write(`[taffy] command failed: ${e.message}\n`);
         }
       } else {
-        // Show for review
-        process.stdout.write(`${taffyIsm()}, ${action.command}\n`);
+        // Show for review — just the command, no flavor text
+        process.stdout.write(action.command + "\n");
       }
       if (config.clipboard) {
         copyToClipboard(action.command);
