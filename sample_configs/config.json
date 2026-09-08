@@ -1,0 +1,21 @@
+{
+  "type": "Custom",
+  "model": "llama3",
+  "baseURL": "http://localhost:11434/v1",
+  "apiKey": "ollama",
+  "context": {
+    "enabled": false,
+    "maxHistoryCommands": 10
+  },
+  "clipboard": false,
+  "scanner": {
+    "enabled": true,
+    "cacheMaxAgeMs": 3600000,
+    "sources": {
+      "xdgApplications": true,
+      "snap": true,
+      "flatpak": true,
+      "pathBinaries": true
+    }
+  }
+}
