@@ -3,35 +3,83 @@ import { buildContextHistory } from "../context/history.js";
 
 /**
  * Format the app registry into a compact inventory for the LLM.
- * Groups by category, only includes useful metadata.
+ * Only includes apps with real metadata — filters out noise from PATH binaries
+ * that have no description or categories.
  */
 export function formatAppInventory(registry: AppRegistry): string {
   if (registry.apps.length === 0) {
     return "No applications found on this system.";
   }
 
-  // Separate GUI apps from CLI tools
-  const guiApps = registry.apps.filter((a) => a.isGui);
-  const cliApps = registry.apps.filter((a) => !a.isGui);
+  // XDG apps always have real metadata from .desktop files
+  const xdgApps = registry.apps.filter((a) => a.source === "xdg" || a.source === "xdg-user");
+
+  // PATH binaries: only include those with a meaningful description
+  // (not just "PATH binary: name" which is the default for unscanned binaries)
+  const pathApps = registry.apps.filter(
+    (a) =>
+      a.source === "path" &&
+      a.description &&
+      !a.description.startsWith("PATH binary:"),
+  );
+
+  // Snap/flatpak apps: include if they have metadata
+  const otherApps = registry.apps.filter(
+    (a) =>
+      (a.source === "snap" || a.source === "flatpak") &&
+      a.description &&
+      !a.description.startsWith("PATH binary:"),
+  );
 
   const lines: string[] = [];
 
-  if (guiApps.length > 0) {
-    lines.push(`GUI Applications (${guiApps.length}):`);
-    for (const app of guiApps) {
-      const desc = app.description ? ` — ${app.description}` : "";
-      const cats = app.categories.length > 0 ? ` [${app.categories.join(", ")}]` : "";
-      lines.push(`  ${app.name}${desc}${cats} → ${app.exec}`);
+  // XDG apps — the good stuff, always useful
+  if (xdgApps.length > 0) {
+    // Separate GUI from terminal apps
+    const gui = xdgApps.filter((a) => a.isGui);
+    const cli = xdgApps.filter((a) => !a.isGui);
+
+    if (gui.length > 0) {
+      lines.push(`GUI Applications (${gui.length}):`);
+      for (const app of gui) {
+        const desc = app.description ? ` — ${app.description}` : "";
+        const cats = app.categories.length > 0 ? ` [${app.categories.join(", ")}]` : "";
+        lines.push(`  ${app.name}${desc}${cats} → ${app.exec}`);
+      }
+      lines.push("");
+    }
+
+    if (cli.length > 0) {
+      lines.push(`Terminal Applications (${cli.length}):`);
+      for (const app of cli) {
+        const desc = app.description ? ` — ${app.description}` : "";
+        const cats = app.categories.length > 0 ? ` [${app.categories.join(", ")}]` : "";
+        lines.push(`  ${app.name}${desc}${cats} → ${app.exec}`);
+      }
+      lines.push("");
+    }
+  }
+
+  // PATH binaries with real descriptions
+  if (pathApps.length > 0) {
+    lines.push(`CLI Tools (${pathApps.length}):`);
+    for (const app of pathApps) {
+      lines.push(`  ${app.name} — ${app.description} → ${app.exec}`);
     }
     lines.push("");
   }
 
-  if (cliApps.length > 0) {
-    lines.push(`CLI Tools (${cliApps.length}):`);
-    for (const app of cliApps) {
-      const desc = app.description ? ` — ${app.description}` : "";
-      lines.push(`  ${app.name}${desc} → ${app.exec}`);
+  // Snap/flatpak
+  if (otherApps.length > 0) {
+    lines.push(`Packages (${otherApps.length}):`);
+    for (const app of otherApps) {
+      lines.push(`  ${app.name} — ${app.description} → ${app.exec}`);
     }
+  }
+
+  const total = xdgApps.length + pathApps.length + otherApps.length;
+  if (total === 0) {
+    return "No applications with sufficient metadata found. The system has CLI tools in PATH but no detailed inventory.";
   }
 
   return lines.join("\n");
@@ -63,7 +111,16 @@ export function buildSystemPrompt(
   // 3. App inventory
   sections.push(`## Application Inventory\n${formatAppInventory(registry)}`);
 
-  // 4. Shell history context (if enabled)
+  // 4. User defaults — preferred apps for common tasks
+  const defaults = config.defaults;
+  if (Object.keys(defaults).length > 0) {
+    const defaultsLines = Object.entries(defaults).map(
+      ([category, app]) => `  ${category}: ${app}`,
+    );
+    sections.push(`## Preferred Apps\n${defaultsLines.join("\n")}\n\nWhen multiple apps can do the same job, always prefer the user's preferred app listed above.`);
+  }
+
+  // 5. Shell history context (if enabled)
   const historyContext = buildContextHistory(config.context);
   if (historyContext) {
     sections.push(`## Shell History\n${historyContext}`);
@@ -76,17 +133,29 @@ You MUST respond with exactly one JSON object. No markdown fences, no explanatio
 Choose the action type that best fits the user's request:
 
 **Command action** — run a shell command:
-{"type":"command","command":"ls -la ~"}
+{"type":"command","command":"ls -la ~","auto":false}
 
-**Launch action** — open an application:
+**Auto-execute command** — simple, safe commands that should just run immediately:
+{"type":"command","command":"find /home -size +100M -type f","auto":true}
+{"type":"command","command":"df -h","auto":true}
+{"type":"command","command":"uptime","auto":true}
+
+**Launch action** — open an application (always auto-executes):
 {"type":"launch","app":"firefox"}
-{"type":"launch","app":"vlc","args":"--fullscreen /path/to/video.mp4"}
 
 **Composite action** — multiple steps in sequence:
-{"type":"composite","steps":[{"type":"command","command":"cd ~/projects"},{"type":"launch","app":"code","args":"."}]}
+{"type":"composite","steps":[{"type":"command","command":"cd ~/projects"},{"type":"launch","app":"code","args":"."}],"auto":true}
 
 **Error action** — if the request is unclear, dangerous, or IMPOSSIBLE because no installed app can do it:
 {"type":"error","message":"dude, nothing on this box can play music — you'd need to install mpv or something"}
+
+THE "auto" FLAG:
+- Set "auto": true when the request is simple and safe — user wants it done NOW, not shown for review.
+  Examples: find files, check disk space, list processes, check uptime, system info, restart a service.
+- Set "auto": false (or omit it) when the user might want to review/edit before running.
+  Examples: complex commands, commands with side effects, commands the user phrased as "how do I..." or "what's the command for..."
+- NEVER auto-execute: rm -rf, DROP TABLE, shutdown, reboot, kill, mkfs, dd, anything that destroys data or stops the system.
+- When in doubt, auto:false.
 
 CRITICAL RULES:
 - "command" must be a valid shell command for ${process.platform === "win32" ? "PowerShell" : "the user's shell"}

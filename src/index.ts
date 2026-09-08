@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { loadConfig } from "./config.js";
+import { loadConfig, saveConfig } from "./config.js";
 import { fullScan } from "./scanner/app-scanner.js";
 import { loadRegistry, getOrRescan, saveRegistry } from "./scanner/registry.js";
 import { loadSoul } from "./soul/loader.js";
@@ -8,6 +8,8 @@ import { buildSystemPrompt } from "./llm/prompt.js";
 import { parseLLMResponse } from "./llm/response.js";
 import type { ActionResult, CompositeAction, Config, AppRegistry } from "./types.js";
 import { execSync } from "child_process";
+
+const VERSION = "1.0.0";
 
 // ---------------------------------------------------------------------------
 // CLI argument parsing
@@ -19,6 +21,9 @@ interface CLIArgs {
   noScan: boolean;
   prompt: string[];
   help: boolean;
+  version: boolean;
+  setDefault?: { category: string; app: string };
+  listDefaults: boolean;
 }
 
 function parseArgs(argv: string[]): CLIArgs {
@@ -27,6 +32,8 @@ function parseArgs(argv: string[]): CLIArgs {
     noScan: false,
     prompt: [],
     help: false,
+    version: false,
+    listDefaults: false,
   };
 
   const raw = argv.slice(2); // skip node/bun and script path
@@ -44,6 +51,21 @@ function parseArgs(argv: string[]): CLIArgs {
       args.soulPath = raw[i];
     } else if (arg === "--help" || arg === "-h") {
       args.help = true;
+    } else if (arg === "--version" || arg === "-v") {
+      args.version = true;
+    } else if (arg === "--set-default") {
+      i++;
+      const category = raw[i];
+      i++;
+      const app = raw[i];
+      if (!category || !app) {
+        process.stderr.write("[taffy] Usage: taffy --set-default <category> <app>\n");
+        process.stderr.write("  Example: taffy --set-default editor vim\n");
+        process.exit(1);
+      }
+      args.setDefault = { category, app };
+    } else if (arg === "--defaults") {
+      args.listDefaults = true;
     } else if (arg === "--") {
       // Everything after -- is the prompt
       i++;
@@ -73,16 +95,21 @@ USAGE:
   taffy [OPTIONS] <prompt>
 
 OPTIONS:
-  --rescan       Force a fresh application scan (ignore cache)
-  --no-scan      Skip application scanning entirely
-  --soul <path>  Load personality from a specific SOUL.md file
-  -h, --help     Show this help message
+  --rescan                      Force a fresh application scan (ignore cache)
+  --no-scan                     Skip application scanning entirely
+  --soul <path>                 Load personality from a specific SOUL.md file
+  --set-default <category> <app>  Set preferred app for a category
+  --defaults                    Show current app defaults
+  -v, --version                 Show version
+  -h, --help                    Show this help message
 
 EXAMPLES:
+  taffy "find large files"
   taffy "open firefox"
-  taffy "list large files in home directory"
   taffy --rescan "launch the music player"
-  taffy --soul ~/.my-soul.md "what's on my system?"
+  taffy --set-default editor vim
+  taffy --set-default browser chromium
+  taffy --defaults
 
 CONFIGURATION:
   Config file:   ~/.config/taffy/config.json
@@ -91,11 +118,42 @@ CONFIGURATION:
 
 ENVIRONMENT:
   TAFFY_API_KEY        API key for the LLM provider
-  TAFFY_MODEL          Model name (default: llama3)
-  TAFFY_BASE_URL       Base URL for API calls (default: http://localhost:11434/v1)
-  TAFFY_PROVIDER_TYPE  Provider type: OpenAI, Custom, Claude, Gemini, GitHub, OpenRouter
+  TAFFY_MODEL          Model name
+  TAFFY_BASE_URL       API endpoint
+  TAFFY_PROVIDER_TYPE  Provider: OpenAI, Custom, Claude, Gemini, GitHub, OpenRouter
   TAFFY_CLIPBOARD      Copy commands to clipboard (true/false)
 `);
+}
+
+// ---------------------------------------------------------------------------
+// Taffy-isms — random flavor text before responses
+// ---------------------------------------------------------------------------
+
+const TAFFY_ISMS = [
+  "sure thing",
+  "totally",
+  "gotchu",
+  "on it",
+  "you got it",
+  "bet",
+  "say less",
+  "easy",
+  "done",
+  "no worries",
+  "I got you",
+  "yep",
+  "alright",
+  "let's go",
+  "here you go",
+  "boom",
+  "okay okay",
+  "right on",
+  "cool cool",
+  "yup",
+];
+
+function taffyIsm(): string {
+  return TAFFY_ISMS[Math.floor(Math.random() * TAFFY_ISMS.length)];
 }
 
 // ---------------------------------------------------------------------------
@@ -105,14 +163,42 @@ ENVIRONMENT:
 function dispatchAction(action: ActionResult, config: Config): void {
   switch (action.type) {
     case "command":
-      process.stdout.write(action.command + "\n");
+      if (action.auto) {
+        // Auto-execute: run it and show output
+        process.stdout.write(`${taffyIsm()}\n`);
+        try {
+          const output = execSync(action.command, {
+            encoding: "utf-8",
+            timeout: 30000,
+            stdio: ["pipe", "pipe", "pipe"],
+          });
+          process.stdout.write(output);
+        } catch (err: unknown) {
+          const e = err as { stdout?: string; stderr?: string; message?: string };
+          if (e.stdout) process.stdout.write(e.stdout);
+          if (e.stderr) process.stderr.write(e.stderr);
+          if (!e.stdout && !e.stderr) process.stderr.write(`[taffy] command failed: ${e.message}\n`);
+        }
+      } else {
+        // Show for review
+        process.stdout.write(`${taffyIsm()}, ${action.command}\n`);
+      }
       if (config.clipboard) {
         copyToClipboard(action.command);
       }
       break;
 
     case "launch":
-      process.stdout.write(`launch ${action.app}${action.args ? " " + action.args : ""}\n`);
+      process.stdout.write(`${taffyIsm()}, launching ${action.app}${action.args ? " " + action.args : ""}\n`);
+      // Launch apps in background so we don't block
+      try {
+        execSync(`${action.app} ${action.args ?? ""} &`, {
+          stdio: "ignore",
+          timeout: 2000,
+        });
+      } catch {
+        // App launched in background, this is expected
+      }
       break;
 
     case "composite":
@@ -130,24 +216,42 @@ function dispatchAction(action: ActionResult, config: Config): void {
 }
 
 function dispatchComposite(action: CompositeAction, config: Config): void {
-  process.stdout.write("--- Composite Action ---\n");
-  for (let i = 0; i < action.steps.length; i++) {
-    const step = action.steps[i];
-    process.stdout.write(`[${i + 1}/${action.steps.length}] `);
-
+  // Flatten composite into a single "cmd1 && cmd2" string
+  const parts: string[] = [];
+  for (const step of action.steps) {
     switch (step.type) {
       case "command":
-        process.stdout.write(`Run: ${step.command}\n`);
-        if (config.clipboard) {
-          copyToClipboard(step.command);
-        }
+        parts.push(step.command);
         break;
       case "launch":
-        process.stdout.write(`Launch: ${step.app}${step.args ? " " + step.args : ""}\n`);
+        parts.push(`${step.app}${step.args ? " " + step.args : ""}`);
         break;
     }
   }
-  process.stdout.write("--- End Composite ---\n");
+  const combined = parts.join(" && ");
+
+  if (action.auto) {
+    process.stdout.write(`${taffyIsm()}\n`);
+    try {
+      const output = execSync(combined, {
+        encoding: "utf-8",
+        timeout: 30000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      process.stdout.write(output);
+    } catch (err: unknown) {
+      const e = err as { stdout?: string; stderr?: string; message?: string };
+      if (e.stdout) process.stdout.write(e.stdout);
+      if (e.stderr) process.stderr.write(e.stderr);
+      if (!e.stdout && !e.stderr) process.stderr.write(`[taffy] command failed: ${e.message}\n`);
+    }
+  } else {
+    process.stdout.write(`${taffyIsm()}, ${combined}\n`);
+  }
+
+  if (config.clipboard) {
+    copyToClipboard(combined);
+  }
 }
 
 function copyToClipboard(text: string): void {
@@ -205,8 +309,39 @@ function copyToClipboard(text: string): void {
 async function main(): Promise<void> {
   const args = parseArgs(process.argv);
 
+  if (args.version) {
+    process.stdout.write(`taffy v${VERSION}\n`);
+    process.exit(0);
+  }
+
   if (args.help) {
     printHelp();
+    process.exit(0);
+  }
+
+  // 1. Load config
+  const config: Config = loadConfig();
+
+  // Handle --set-default
+  if (args.setDefault) {
+    const { category, app } = args.setDefault;
+    config.defaults[category] = app;
+    saveConfig(config);
+    process.stdout.write(`gotchu, default ${category} set to ${app}\n`);
+    process.exit(0);
+  }
+
+  // Handle --defaults
+  if (args.listDefaults) {
+    const entries = Object.entries(config.defaults);
+    if (entries.length === 0) {
+      process.stdout.write("no defaults set yet. use --set-default <category> <app> to set one\n");
+    } else {
+      process.stdout.write("your app defaults:\n");
+      for (const [category, app] of entries) {
+        process.stdout.write(`  ${category}: ${app}\n`);
+      }
+    }
     process.exit(0);
   }
 
@@ -215,9 +350,6 @@ async function main(): Promise<void> {
     process.stderr.write("[taffy] No prompt provided. Use --help for usage.\n");
     process.exit(1);
   }
-
-  // 1. Load config
-  const config: Config = loadConfig();
 
   // 2. Load or rescan registry
   let registry: AppRegistry;
@@ -239,8 +371,6 @@ async function main(): Promise<void> {
 
   // 5. Create LLM provider and generate
   const provider = createProvider(config);
-
-  process.stderr.write(`[taffy] Asking ${provider.name} (${config.model})...\n`);
 
   let rawResponse: string;
   try {

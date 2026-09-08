@@ -35,6 +35,9 @@ const nullToDefault = (fallback: string) =>
     z.string().default(fallback),
   );
 
+// App defaults — maps a category to the user's preferred app
+export const DefaultsSchema = z.record(z.string(), z.string());
+
 // Main config
 export const ConfigSchema = z.object({
   type: ProviderTypeSchema.default("Custom"),
@@ -45,6 +48,7 @@ export const ConfigSchema = z.object({
   clipboard: z.boolean().default(false),
   scanner: ScannerConfigSchema.default({}),
   soulPath: z.string().optional(),
+  defaults: DefaultsSchema.default({}),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -72,6 +76,7 @@ export interface AppRegistry {
 export interface CommandAction {
   type: "command";
   command: string;
+  auto?: boolean;
 }
 export interface LaunchAction {
   type: "launch";
@@ -81,6 +86,7 @@ export interface LaunchAction {
 export interface CompositeAction {
   type: "composite";
   steps: Array<CommandAction | LaunchAction>;
+  auto?: boolean;
 }
 export interface ErrorAction {
   type: "error";
@@ -98,6 +104,7 @@ export interface LLMProvider {
 export const CommandActionSchema = z.object({
   type: z.literal("command"),
   command: z.string().min(1),
+  auto: z.boolean().optional(),
 });
 
 export const LaunchActionSchema = z.object({
@@ -111,6 +118,7 @@ export const CompositeActionSchema = z.object({
   steps: z.array(
     z.union([CommandActionSchema, LaunchActionSchema])
   ).min(1),
+  auto: z.boolean().optional(),
 });
 
 export const ErrorActionSchema = z.object({

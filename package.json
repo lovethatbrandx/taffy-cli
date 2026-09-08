@@ -6,11 +6,11 @@
   "type": "module",
   "private": true,
   "bin": {
-    "taffy": "./dist/taffy-cli"
+    "taffy": "./dist/taffy"
   },
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun build ./src/index.ts --compile --outfile dist/taffy-cli",
+    "build": "bun build ./src/index.ts --compile --outfile dist/taffy",
     "scan": "bun run src/app-scanner.ts"
   },
   "devDependencies": {
