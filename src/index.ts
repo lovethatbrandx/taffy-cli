@@ -168,26 +168,7 @@ function taffyIsm(): string {
 function dispatchAction(action: ActionResult, config: Config): void {
   switch (action.type) {
     case "command":
-      if (action.auto) {
-        // Auto-execute: run it and show output
-        process.stdout.write(`${taffyIsm()}\n`);
-        try {
-          const output = execSync(action.command, {
-            encoding: "utf-8",
-            timeout: 30000,
-            stdio: ["pipe", "pipe", "pipe"],
-          });
-          process.stdout.write(output);
-        } catch (err: unknown) {
-          const e = err as { stdout?: string; stderr?: string; message?: string };
-          if (e.stdout) process.stdout.write(e.stdout);
-          if (e.stderr) process.stderr.write(e.stderr);
-          if (!e.stdout && !e.stderr) process.stderr.write(`[taffy] command failed: ${e.message}\n`);
-        }
-      } else {
-        // Show for review — just the command, no flavor text
-        process.stdout.write(action.command + "\n");
-      }
+      process.stdout.write(action.command + "\n");
       if (config.clipboard) {
         copyToClipboard(action.command);
       }
@@ -221,7 +202,6 @@ function dispatchAction(action: ActionResult, config: Config): void {
 }
 
 function dispatchComposite(action: CompositeAction, config: Config): void {
-  // Flatten composite into a single "cmd1 && cmd2" string
   const parts: string[] = [];
   for (const step of action.steps) {
     switch (step.type) {
@@ -234,26 +214,7 @@ function dispatchComposite(action: CompositeAction, config: Config): void {
     }
   }
   const combined = parts.join(" && ");
-
-  if (action.auto) {
-    process.stdout.write(`${taffyIsm()}\n`);
-    try {
-      const output = execSync(combined, {
-        encoding: "utf-8",
-        timeout: 30000,
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      process.stdout.write(output);
-    } catch (err: unknown) {
-      const e = err as { stdout?: string; stderr?: string; message?: string };
-      if (e.stdout) process.stdout.write(e.stdout);
-      if (e.stderr) process.stderr.write(e.stderr);
-      if (!e.stdout && !e.stderr) process.stderr.write(`[taffy] command failed: ${e.message}\n`);
-    }
-  } else {
-    process.stdout.write(`${taffyIsm()}, ${combined}\n`);
-  }
-
+  process.stdout.write(combined + "\n");
   if (config.clipboard) {
     copyToClipboard(combined);
   }

@@ -125,34 +125,28 @@ export function buildSystemPrompt(
 
 You MUST respond with exactly one JSON object. No markdown fences, no explanation before or after.
 
-**Command action (default — show for review):**
+**Command action — show for review (DEFAULT):**
 {"type":"command","command":"python3 -m venv .venv"}
+{"type":"command","command":"df -h"}
+{"type":"command","command":"find /home -size +100M -type f"}
 {"type":"command","command":"sudo apt install nginx"}
-{"type":"command","command":"git clone https://github.com/user/repo.git"}
 
-**Auto-execute command (read-only info only):**
-{"type":"command","command":"df -h","auto":true}
-{"type":"command","command":"free -m","auto":true}
-{"type":"command","command":"uptime","auto":true}
-{"type":"command","command":"ls -la ~","auto":true}
-{"type":"command","command":"find /home -size +100M -type f","auto":true}
-
-**Launch action — open an app:**
+**Launch action — open an app (auto-runs immediately):**
 {"type":"launch","app":"btop"}
 {"type":"launch","app":"chromium"}
 
 **Error action — can't do it:**
 {"type":"error","message":"nothing on this box can do that — you'd need to install X"}
 
+WHEN TO USE WHICH:
+- User wants to OPEN or USE an app ("open btop", "what's eating my RAM", "launch the browser") → launch action. The app opens immediately.
+- User wants to RUN a COMMAND ("create a venv", "find large files", "install nginx") → command action. The command is printed for the user to review and hit enter.
+- If no app can do it → error action.
+
 RULES:
-- DEFAULT is auto:false (omit the auto field). Show the command, let the user hit enter to run it.
-- ONLY set auto:true for read-only, info-gathering commands: df, free, uptime, ls, find, cat, head, tail, whoami, hostname, uname, ps, top, du, etc.
-- NEVER auto-execute: anything that creates files, installs packages, modifies config, clones repos, builds things, starts services, or has side effects.
-- NEVER use "source" or shell activation commands (source .venv/bin/activate, etc.) — these can't work outside the user's shell.
-- Keep it simple. One command action is almost always the right answer. Don't overthink it.
 - "launch" app name must match an exec name from the Application Inventory.
-- If no app can do it, use error action.
-- Just the JSON. No extra text.`);
+- Commands are ALWAYS shown for review. Never auto-execute commands.
+- Keep it simple. One action. Just the JSON. No extra text.`);
 
   return sections.join("\n\n");
 }
