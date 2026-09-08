@@ -194,15 +194,15 @@ function dispatchAction(action: ActionResult, config: Config): void {
       break;
 
     case "launch":
-      process.stdout.write(`${taffyIsm()}, launching ${action.app}${action.args ? " " + action.args : ""}\n`);
-      // Launch apps in background so we don't block
+      // Run the app in foreground with terminal access
+      // Terminal apps (btop, htop) need stdio: "inherit" to display correctly
+      // GUI apps will open a window and return when closed
       try {
-        execSync(`${action.app} ${action.args ?? ""} &`, {
-          stdio: "ignore",
-          timeout: 2000,
+        execSync(action.app + (action.args ? " " + action.args : ""), {
+          stdio: "inherit",
         });
       } catch {
-        // App launched in background, this is expected
+        // App exited with non-zero — that's fine, it still ran
       }
       break;
 

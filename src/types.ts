@@ -23,7 +23,7 @@ export type ScannerSources = z.infer<typeof ScannerSourcesSchema>;
 // Scanner config
 export const ScannerConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  cacheMaxAgeMs: z.number().int().min(0).default(3600000), // 1 hour
+  cacheMaxAgeMs: z.number().int().min(0).default(86400000), // 24 hours
   sources: ScannerSourcesSchema.default({}),
 });
 export type ScannerConfig = z.infer<typeof ScannerConfigSchema>;

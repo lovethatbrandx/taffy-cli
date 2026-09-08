@@ -60,13 +60,14 @@ export async function saveRegistry(registry: AppRegistry): Promise<void> {
 
 /**
  * Check if any XDG app directories have been modified since the last scan.
- * The OS updates directory mtime when files are added/removed (i.e. new app installed).
+ * Uses a 5-minute buffer to avoid false triggers from package manager activity.
  */
 function dirsChangedSince(scannedAt: number): boolean {
+  const BUFFER_MS = 5 * 60 * 1000; // 5 minutes
   for (const dir of XDG_WATCH_DIRS) {
     try {
       const st = statSync(dir);
-      if (st.mtimeMs > scannedAt) return true;
+      if (st.mtimeMs > scannedAt + BUFFER_MS) return true;
     } catch {
       // Directory doesn't exist — skip
     }
