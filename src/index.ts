@@ -321,11 +321,29 @@ async function main(): Promise<void> {
 
   if (args.update) {
     process.stdout.write("updating taffy...\n");
-    const scriptPath = new URL("../scripts/install.sh", import.meta.url).pathname;
+
+    // Find the repo directory — works from compiled binary or bun run
+    const repoDir = process.env.TAFFY_REPO_DIR
+      ?? "/home/reposed/brandx/taffy-cli";
+
+    const updateScript = [
+      "set -e",
+      `cd "${repoDir}"`,
+      "echo 'pulling latest...'",
+      "git pull --quiet",
+      "echo 'building...'",
+      "bun run build",
+      "echo 'installing...'",
+      "sudo cp dist/taffy /usr/local/bin/taffy.tmp",
+      "sudo mv /usr/local/bin/taffy.tmp /usr/local/bin/taffy",
+      "sudo chmod +x /usr/local/bin/taffy",
+      "echo done",
+    ].join(" && ");
+
     try {
-      execSync(`bash "${scriptPath}"`, { stdio: "inherit" });
+      execSync(updateScript, { stdio: "inherit" });
     } catch {
-      process.stderr.write("[taffy] update failed. try manually: cd /home/reposed/brandx/taffy-cli && scripts/install.sh\n");
+      process.stderr.write("[taffy] update failed.\n");
       process.exit(1);
     }
     process.exit(0);
