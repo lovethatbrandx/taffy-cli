@@ -124,40 +124,35 @@ export function buildSystemPrompt(
   sections.push(`## Response Format
 
 You MUST respond with exactly one JSON object. No markdown fences, no explanation before or after.
-Choose the action type that best fits the user's request:
 
-**Command action** — run a shell command:
-{"type":"command","command":"ls -la ~","auto":false}
+**Command action (default — show for review):**
+{"type":"command","command":"python3 -m venv .venv"}
+{"type":"command","command":"sudo apt install nginx"}
+{"type":"command","command":"git clone https://github.com/user/repo.git"}
 
-**Auto-execute command** — simple, safe commands that should just run immediately:
-{"type":"command","command":"find /home -size +100M -type f","auto":true}
+**Auto-execute command (read-only info only):**
 {"type":"command","command":"df -h","auto":true}
+{"type":"command","command":"free -m","auto":true}
 {"type":"command","command":"uptime","auto":true}
+{"type":"command","command":"ls -la ~","auto":true}
+{"type":"command","command":"find /home -size +100M -type f","auto":true}
 
-**Launch action** — open an application (always auto-executes):
-{"type":"launch","app":"firefox"}
+**Launch action — open an app:**
+{"type":"launch","app":"btop"}
+{"type":"launch","app":"chromium"}
 
-**Composite action** — multiple steps in sequence:
-{"type":"composite","steps":[{"type":"command","command":"cd ~/projects"},{"type":"launch","app":"code","args":"."}],"auto":true}
+**Error action — can't do it:**
+{"type":"error","message":"nothing on this box can do that — you'd need to install X"}
 
-**Error action** — if the request is unclear, dangerous, or IMPOSSIBLE because no installed app can do it:
-{"type":"error","message":"dude, nothing on this box can play music — you'd need to install mpv or something"}
-
-THE "auto" FLAG:
-- Set "auto": true when the request is simple and safe — user wants it done NOW, not shown for review.
-  Examples: find files, check disk space, list processes, check uptime, system info, restart a service.
-- Set "auto": false (or omit it) when the user might want to review/edit before running.
-  Examples: complex commands, commands with side effects, commands the user phrased as "how do I..." or "what's the command for..."
-- NEVER auto-execute: rm -rf, DROP TABLE, shutdown, reboot, kill, mkfs, dd, anything that destroys data or stops the system.
-- When in doubt, auto:false.
-
-CRITICAL RULES:
-- "command" must be a valid shell command for ${process.platform === "win32" ? "PowerShell" : "the user's shell"}
-- "launch" app name must exactly match an exec name from the Application Inventory
-- If the user's request requires an app that ISN'T in the Application Inventory, use an error action. Do NOT generate a command that will fail. Do NOT guess an app name.
-- Use "composite" only when multiple distinct steps are needed
-- Be precise. No extra commentary. Just the JSON.
-- For casual/vague requests ("bump some tunes", "let's boogie", "time to surf the net"), match the intent to the best available app. If nothing fits, error action with a natural explanation.`);
+RULES:
+- DEFAULT is auto:false (omit the auto field). Show the command, let the user hit enter to run it.
+- ONLY set auto:true for read-only, info-gathering commands: df, free, uptime, ls, find, cat, head, tail, whoami, hostname, uname, ps, top, du, etc.
+- NEVER auto-execute: anything that creates files, installs packages, modifies config, clones repos, builds things, starts services, or has side effects.
+- NEVER use "source" or shell activation commands (source .venv/bin/activate, etc.) — these can't work outside the user's shell.
+- Keep it simple. One command action is almost always the right answer. Don't overthink it.
+- "launch" app name must match an exec name from the Application Inventory.
+- If no app can do it, use error action.
+- Just the JSON. No extra text.`);
 
   return sections.join("\n\n");
 }
