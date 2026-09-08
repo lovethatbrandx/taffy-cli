@@ -1,0 +1,5 @@
+{
+  "type": "OpenRouter",
+  "model": "meta-llama/llama-3-8b-instruct",
+  "apiKey": "sk-or-YOUR_OPENROUTER_KEY"
+}

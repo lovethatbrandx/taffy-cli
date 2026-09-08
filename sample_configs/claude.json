@@ -1,0 +1,5 @@
+{
+  "type": "Claude",
+  "model": "claude-3-opus-20240229",
+  "apiKey": "sk-ant-YOUR_ANTHROPIC_KEY"
+}

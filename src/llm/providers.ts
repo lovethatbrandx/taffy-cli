@@ -185,6 +185,41 @@ class GitHubProvider implements LLMProvider {
 }
 
 // ---------------------------------------------------------------------------
+// OpenRouter provider (OpenAI-compatible API)
+// ---------------------------------------------------------------------------
+
+class OpenRouterProvider implements LLMProvider {
+  readonly name = "OpenRouter";
+
+  private readonly apiKey: string;
+  private readonly model: string;
+
+  constructor(config: Config) {
+    this.apiKey = config.apiKey;
+    this.model = config.model;
+  }
+
+  async generate(systemPrompt: string, userMessage: string): Promise<string> {
+    const OpenAI = (await import("openai")).default;
+    const client = new OpenAI({
+      apiKey: this.apiKey,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+
+    const response = await client.chat.completions.create({
+      model: this.model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0.3,
+    });
+
+    return response.choices[0]?.message?.content ?? "";
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Factory
 // ---------------------------------------------------------------------------
 
@@ -203,6 +238,8 @@ export function createProvider(config: Config): LLMProvider {
       return new GeminiProvider(config);
     case "GitHub":
       return new GitHubProvider(config);
+    case "OpenRouter":
+      return new OpenRouterProvider(config);
     default: {
       // Exhaustive check
       const _exhaustive: never = config.type;

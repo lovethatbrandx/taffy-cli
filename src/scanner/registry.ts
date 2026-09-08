@@ -1,10 +1,18 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
 import type { AppEntry, AppRegistry, Config } from "../types.js";
 import { getConfigDir } from "../config.js";
 
 /** Bump this to force a full re-scan on upgrade. */
 export const SCAN_VERSION = 1;
+
+// XDG directories to watch for mtime changes (new app installs)
+const XDG_WATCH_DIRS = [
+  "/usr/share/applications",
+  "/usr/local/share/applications",
+  "/snap/bin",
+  "/var/lib/flatpak/exports/bin",
+];
 
 function getRegistryPath(): string {
   return join(getConfigDir(), "registry.json");
@@ -51,7 +59,24 @@ export async function saveRegistry(registry: AppRegistry): Promise<void> {
 }
 
 /**
+ * Check if any XDG app directories have been modified since the last scan.
+ * The OS updates directory mtime when files are added/removed (i.e. new app installed).
+ */
+function dirsChangedSince(scannedAt: number): boolean {
+  for (const dir of XDG_WATCH_DIRS) {
+    try {
+      const st = statSync(dir);
+      if (st.mtimeMs > scannedAt) return true;
+    } catch {
+      // Directory doesn't exist — skip
+    }
+  }
+  return false;
+}
+
+/**
  * Return cached registry if valid, otherwise run the scan function.
+ * Validity: exists + age < cacheMaxAgeMs + scanVersion matches + no dir changes.
  */
 export async function getOrRescan(
   config: Config,
@@ -61,8 +86,17 @@ export async function getOrRescan(
 
   if (cached) {
     const age = Date.now() - cached.scannedAt;
-    if (age < config.scanner.cacheMaxAgeMs) {
+    const cacheFresh = age < config.scanner.cacheMaxAgeMs;
+
+    if (cacheFresh && !dirsChangedSince(cached.scannedAt)) {
       return cached;
+    }
+
+    // Cache expired OR an app directory changed — rescan
+    if (!cacheFresh) {
+      process.stderr.write("[taffy] App cache expired, rescanning...\n");
+    } else {
+      process.stderr.write("[taffy] Detected new app installs, rescanning...\n");
     }
   }
 

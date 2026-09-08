@@ -93,7 +93,7 @@ ENVIRONMENT:
   TAFFY_API_KEY        API key for the LLM provider
   TAFFY_MODEL          Model name (default: llama3)
   TAFFY_BASE_URL       Base URL for API calls (default: http://localhost:11434/v1)
-  TAFFY_PROVIDER_TYPE  Provider type: OpenAI, Custom, Claude, Gemini, GitHub
+  TAFFY_PROVIDER_TYPE  Provider type: OpenAI, Custom, Claude, Gemini, GitHub, OpenRouter
   TAFFY_CLIPBOARD      Copy commands to clipboard (true/false)
 `);
 }

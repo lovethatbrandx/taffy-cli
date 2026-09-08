@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Provider types
-export const ProviderTypeSchema = z.enum(["OpenAI", "Custom", "Claude", "Gemini", "GitHub"]);
+export const ProviderTypeSchema = z.enum(["OpenAI", "Custom", "Claude", "Gemini", "GitHub", "OpenRouter"]);
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
 
 // Context config
