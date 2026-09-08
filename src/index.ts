@@ -24,6 +24,7 @@ interface CLIArgs {
   version: boolean;
   setDefault?: { category: string; app: string };
   listDefaults: boolean;
+  update: boolean;
 }
 
 function parseArgs(argv: string[]): CLIArgs {
@@ -34,6 +35,7 @@ function parseArgs(argv: string[]): CLIArgs {
     help: false,
     version: false,
     listDefaults: false,
+    update: false,
   };
 
   const raw = argv.slice(2); // skip node/bun and script path
@@ -66,6 +68,8 @@ function parseArgs(argv: string[]): CLIArgs {
       args.setDefault = { category, app };
     } else if (arg === "--defaults") {
       args.listDefaults = true;
+    } else if (arg === "--update") {
+      args.update = true;
     } else if (arg === "--") {
       // Everything after -- is the prompt
       i++;
@@ -100,6 +104,7 @@ OPTIONS:
   --soul <path>                 Load personality from a specific SOUL.md file
   --set-default <category> <app>  Set preferred app for a category
   --defaults                    Show current app defaults
+  --update                      Pull latest from git, rebuild, reinstall
   -v, --version                 Show version
   -h, --help                    Show this help message
 
@@ -311,6 +316,18 @@ async function main(): Promise<void> {
 
   if (args.version) {
     process.stdout.write(`taffy v${VERSION}\n`);
+    process.exit(0);
+  }
+
+  if (args.update) {
+    process.stdout.write("updating taffy...\n");
+    const scriptPath = new URL("../scripts/install.sh", import.meta.url).pathname;
+    try {
+      execSync(`bash "${scriptPath}"`, { stdio: "inherit" });
+    } catch {
+      process.stderr.write("[taffy] update failed. try manually: cd /home/reposed/brandx/taffy-cli && scripts/install.sh\n");
+      process.exit(1);
+    }
     process.exit(0);
   }
 
