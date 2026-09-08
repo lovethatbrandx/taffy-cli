@@ -122,6 +122,22 @@ export function parseLLMResponse(raw: string): ActionResult {
   // Only do this if the text looks like it could be a command (not empty, not too long)
   const trimmed = cleaned.trim();
   if (trimmed.length > 0 && trimmed.length < 4096) {
+    // If the text looks like natural language (not a command), treat as error/response
+    const looksLikeNaturalLanguage =
+      /^[A-Z][a-z]/.test(trimmed) && // starts with capitalized word
+      trimmed.includes(" ") && // has multiple words
+      !trimmed.startsWith("sudo ") &&
+      !trimmed.startsWith("cd ") &&
+      !trimmed.startsWith("ls ") &&
+      !trimmed.startsWith("cat ") &&
+      !trimmed.startsWith("echo ") &&
+      !trimmed.startsWith("grep ") &&
+      !trimmed.startsWith("find ");
+
+    if (looksLikeNaturalLanguage) {
+      return { type: "error", message: trimmed };
+    }
+
     process.stderr.write("[taffy] Falling back to raw command interpretation.\n");
     return { type: "command", command: trimmed };
   }

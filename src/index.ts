@@ -120,8 +120,7 @@ function dispatchAction(action: ActionResult, config: Config): void {
       break;
 
     case "error":
-      process.stderr.write(`[taffy] ${action.message}\n`);
-      process.exit(1);
+      process.stdout.write(action.message + "\n");
       break;
 
     default:
