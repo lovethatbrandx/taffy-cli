@@ -1,21 +1,21 @@
 # taffy-cli
 
-Natural language to action on the command line. Powered by Ollama (or any OpenAI-compatible LLM).
+Natural language to action on the command line. Powered by OpenRouter, Ollama, or any OpenAI-compatible LLM.
 
 ```
-taffy "bump some tunes"        → launches mpv/spotify/vlc
+taffy "bump some tunes"        → launches mpv/spotify/vlc (if installed)
 taffy "edit my bashrc"         → vim ~/.bashrc
 taffy "find large files"       → find ~ -type f -size +100M
 taffy "surf the net"           → launches chromium/firefox
-taffy "list docker containers" → docker ps
+taffy "open photoshop"         → "nah, nothing on this box can open photoshop"
 ```
 
-Taffy knows what's installed on your system. GUI apps, CLI tools, snap packages, flatpak — she scans it all and uses that inventory to pick the right tool for the job.
+Taffy knows what's installed on your system. GUI apps, CLI tools, snap packages, flatpak — she scans it all and uses that inventory to pick the right tool for the job. If nothing can do what you're asking, she'll tell you straight up instead of generating a broken command.
 
 ## Install
 
 ```bash
-git clone https://github.com/REPO/taffy-cli.git
+git clone https://github.com/lovethatbrandx/taffy-cli.git
 cd taffy-cli
 bun install
 bun run build
@@ -25,13 +25,25 @@ mv dist/taffy-cli /usr/local/bin/taffy-cli
 
 ## Configure
 
-Taffy defaults to Ollama on `localhost:11434`. Just have Ollama running with a model pulled:
+Config lives at `~/.config/taffy/config.json` (auto-created on first run).
+
+### OpenRouter (recommended)
+
+Get an API key at [openrouter.ai](https://openrouter.ai) and pick a model:
+
+```json
+{
+  "type": "OpenRouter",
+  "model": "nvidia/nemotron-3.5-lightning:free",
+  "apiKey": "sk-or-v1-YOUR_KEY"
+}
+```
+
+### Ollama (local)
 
 ```bash
 ollama pull llama3
 ```
-
-Config lives at `~/.config/taffy/config.json` (auto-created on first run):
 
 ```json
 {
@@ -57,7 +69,7 @@ Config lives at `~/.config/taffy/config.json` (auto-created on first run):
 | `TAFFY_API_KEY` | API key (overrides config) |
 | `TAFFY_MODEL` | Model name |
 | `TAFFY_BASE_URL` | API endpoint |
-| `TAFFY_PROVIDER_TYPE` | Provider: OpenAI, Custom, Claude, Gemini, GitHub |
+| `TAFFY_PROVIDER_TYPE` | Provider: OpenAI, Custom, Claude, Gemini, GitHub, OpenRouter |
 | `TAFFY_CLIPBOARD` | Copy commands to clipboard (true/false) |
 
 ## Shell integration
@@ -92,7 +104,7 @@ taffy "find all .log files over 50MB"
 
 Taffy loads a personality from SOUL.md. Drop your own at `~/.config/taffy/SOUL.md` to customize how she talks, what she knows, and how she acts.
 
-The default SOUL.md ships with the repo — warm, slightly sassy, efficient. Replace it with whatever you want.
+The default SOUL.md ships with the repo — SoCal energy, dry wit, no corporate cheerleader vibes. Replace it with whatever you want.
 
 ## App scanning
 
@@ -103,7 +115,7 @@ Taffy scans your system for installed applications:
 - **Flatpak** — `/var/lib/flatpak/exports/bin/`
 - **PATH** — all binaries in your `$PATH`
 
-Results are cached at `~/.config/taffy/registry.json` (1 hour TTL). Use `--rescan` to force a refresh after installing new apps.
+Results are cached at `~/.config/taffy/registry.json` (1 hour TTL). Taffy also watches the app directories — if you install something new, she'll auto-rescan on the next run. Use `--rescan` to force it manually.
 
 ## How it works
 
@@ -114,7 +126,10 @@ Results are cached at `~/.config/taffy/registry.json` (1 hour TTL). Use `--resca
    - `{"type": "command", "command": "..."}` — shell command
    - `{"type": "launch", "app": "..."}` — launch a detected app
    - `{"type": "composite", "steps": [...]}` — multi-step action
+   - `{"type": "error", "message": "..."}` — can't do that / nothing available
 5. Taffy prints the result (or loads it into your shell prompt for editing)
+
+If the LLM returns natural language instead of JSON (some models do this), Taffy detects it and treats it as a response — she won't try to execute "Photoshop is not installed" as a shell command.
 
 ## License
 
