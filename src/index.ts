@@ -382,6 +382,9 @@ async function main(): Promise<void> {
 
   // 7. Dispatch
   dispatchAction(action, config);
+
+  // Exit cleanly — Bun sometimes hangs after execSync returns
+  process.exit(0);
 }
 
 // Run

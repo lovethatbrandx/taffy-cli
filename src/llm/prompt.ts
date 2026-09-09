@@ -125,28 +125,26 @@ export function buildSystemPrompt(
 
 You MUST respond with exactly one JSON object. No markdown fences, no explanation before or after.
 
-**Command action — show for review (DEFAULT):**
+**Command action (single command):**
 {"type":"command","command":"python3 -m venv .venv"}
-{"type":"command","command":"df -h"}
-{"type":"command","command":"find /home -size +100M -type f"}
-{"type":"command","command":"sudo apt install nginx"}
 
-**Launch action — open an app (auto-runs immediately):**
+**Command action (multiple commands joined with &&):**
+{"type":"command","command":"python3 -m venv .venv && source .venv/bin/activate && pip install requests"}
+
+**Launch action — open an app:**
 {"type":"launch","app":"btop"}
-{"type":"launch","app":"chromium"}
 
 **Error action — can't do it:**
-{"type":"error","message":"nothing on this box can do that — you'd need to install X"}
-
-WHEN TO USE WHICH:
-- User wants to OPEN or USE an app ("open btop", "what's eating my RAM", "launch the browser") → launch action. The app opens immediately.
-- User wants to RUN a COMMAND ("create a venv", "find large files", "install nginx") → command action. The command is printed for the user to review and hit enter.
-- If no app can do it → error action.
+{"type":"error","message":"nothing on this box can do that"}
 
 RULES:
+- User wants to OPEN/USE an app → launch action. App opens immediately.
+- User wants a COMMAND → command action. Command is printed for review.
+- User wants MULTIPLE commands → join them with && in a single command action.
+- Commands are ALWAYS shown for review. Never auto-execute.
 - "launch" app name must match an exec name from the Application Inventory.
-- Commands are ALWAYS shown for review. Never auto-execute commands.
-- Keep it simple. One action. Just the JSON. No extra text.`);
+- If no app can do it → error action.
+- Just the JSON. No extra text.`);
 
   return sections.join("\n\n");
 }
